@@ -1,0 +1,386 @@
+---
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+    theme: united
+    mathjax: "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML"
+sansfont: LiberationSans
+bibliography: References.bib
+csl: "biomed-central.csl"
+csl-entry-spacing: 1em
+nocite: '@*'
+link-citations: yes
+---
+
+<!-- <script> -->
+<!-- $(document).ready(function() { -->
+<!-- $head = $('#header'); -->
+<!-- $head.prepend('<img src=\"PLS_Logo.png\" style=\"float: right;width: 150px;\"/>') -->
+<!-- }); -->
+<!-- </script> -->
+
+
+
+
+---
+title:  "Adaptive Trial Designs for Global Health: Vaccine and Cluster Randomized Trials go Bayesian"
+author: "Ofir Harari, Jay J. H. Park, Prince Kumar Lat & Edward J. Mills"
+date:   "August 18, 2023"
+output:
+html_document:
+df_print: paged
+---
+
+<style>
+p {line-height: 1.75em;}
+</style>    
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(dplyr.summarise.inform = FALSE)
+```
+
+
+The following tutorial is a step-by-step demo of the methods presented in [our manuscript](https://drive.google.com/file/d/1IlBQh_7sS6jEb30PFWRvPvIQFJVUpkI2/view?usp=sharing). You may use [the attached R files](https://drive.google.com/file/d/19E5lH9vFd7l050DaDFEefUePy-AVvlvZ/view?usp=sharing) to replicate the below results or experiment with it.
+
+# Before we start
+Make sure that the following libraries are installed on your computer --
+```{r pack-load-chunk, echo=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(foreach)
+library(tcltk)
+library(rlecuyer)
+library(tictoc)
+library(lemon)
+library(scales)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(magick)
+library(gtools)
+library(data.table)
+library(doParallel)
+library(doSNOW)
+library(snow)
+library(foreach)
+library(tidyverse)
+library(reshape2)
+library(pracma)
+library(paletteer)
+library(grDevices)
+```
+
+Setting the working directory and sourcing the custom functions --
+```{r func-source-chunk, echo=TRUE}
+#Setting working directory to current one
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# Sourcing functions
+source('Vaccine_Trial_Functions.R')
+source('Negative_Binomial_Functions.R')
+```
+
+# Bayesian multi-arm, multi-stage vaccine trials
+We start by replicating the results presented in Section 2 of our manuscript. The idea is to design a 4-arm (three vaccine arms and a placebo arm) adaptive trial with a maximum number of four analyses and a $\rho:1:1:1$ randomization ratio, where $\rho$ is the control/treatment ratio derived to minimize the D-optimality criterion, that is: the determinant of the covariance matrix of the contrast estimate $\hat{\boldsymbol{c}}$, contrasting each treatment event rate with the common control event rate.
+
+To do so, we need to provide the number of active vaccine arms (in this case 3) and guestimates for the control event rate (here we use 5%), the treatment relative rate reduction (37.5%).
+
+## Calculating the optimal allocation ratio
+```{r}
+D_opt = D_optimal_alloc_ratio(p_ctrl = .05, n_trts = 3, RRR = .375)
+D_opt$rho
+```
+It turns out that the optimal allocation ratio (according to our inputs) is 1.11:1:1:1.
+```{r}
+D_opt$plot
+```
+
+## Prior selection
+The first step would be selecting a Dirichlet prior distribution for the transformed vaccine effects.
+The following inputs are required --
+```{r}
+ratio = D_opt$rho
+q = 1/(1 + ratio) # the (normalized) allocation probability to vaccine
+alpha_trt = c(1, 2, 5, 15) # Vaccine Dirichlet hyperparameters to explore
+```
+
+For every vaccine hyperparameter of choice, we match a placebo hyperparameter to ensure a 50% a priori probability of efficacy --
+```{r}
+alpha_ctrl = sapply(alpha_trt, alpha_ctrl_func, q = q)
+alpha = cbind(alpha_trt, alpha_ctrl)
+```
+
+This results in the following table --
+```{r}
+priors = do.call(rbind,
+                 apply(alpha, 1, VE_prior_summary, q = q)
+)
+
+priors %>% 
+  kable(align = 'c', escape = F) %>%
+  kable_styling(full_width = F, 
+                bootstrap_options = c("striped"))
+```
+
+Visually, these are the different priors --
+```{r, fig.align='center'}
+LL = -1.5
+UL = 1
+delta = 5e-3
+
+VE_prior_1D_density_plot(LL, UL, delta, alpha, trt_prob = q)
+```
+
+## Trial design
+We choose to go with the first prior from the previous section, and test what the trial would look like for vaccines with VE of 50%, 37.5% and 25%, respectively. Interim analysis will take place every time (up to four occasions) an average of 10.5 (rounded upwards) symptomatic infections are observed across the different remaining arms. Early stopping due to efficacy (or eventual rejection of the null hypothesis of no effect) will occur if the posterior probability of efficacy is greater than 99.025% at any analysis. Early stopping due to futility will occur if it goes below 25%, 50% or 75% in the first, second or third interim analysis, respectively.
+```{r}
+VE = c(.5, .375, .25) # vaccine effects
+d = length(VE) # number of vaccines
+trt_prob = 1/(d + ratio) # vaccine allocation probability
+ctrl_prob = ratio*trt_prob # control allocation probability
+alloc_probs = c(ctrl_prob, rep(trt_prob, d))
+n_analyses = 4 # number of analyses (including final)
+effic_thresh = rep(.99015, n_analyses) # efficacy threshold vector
+futil_thresh = c(.25, .5, .75, 1) # futility threshold vector
+
+# number of events per remaining arm to trigger an interim analysis 
+N_events_per_arm_per_analysis = 10 
+# Dirichlet prior hyperparameters: (vaccine, control)
+hyperpar = c(1, 1.078011)
+```
+
+### Sample trial
+Let us now see what a random trial looks like, under the assumptions and the decision rules stated above --
+```{r}
+LL = -1.1 # lower x-axis limit
+UL = .9 # upper x-axis limit
+delta = 5e-3 # grid resolution
+
+trial = vaccine_trial_plots_and_table(N_events_per_arm_per_analysis, VE, 
+                                      n_analyses, alloc_probs, hyperpar, 
+                                      futil_thresh, effic_thresh, LL, UL, 
+                                      delta, seed = 39)
+```
+
+The resultant object is a list with multiple slots. The first one is a plot displaying the posterior probability of efficacy of each vaccine over time --
+```{r, fig.align='center'}
+trial$p_post_effic
+```
+As you can see, the third vaccine arm was stopped for futility after two interim analyses, while the first vaccine was found to be efficacious after three. The second vaccine arm completed four analyses without meeting the efficacy threshold.
+
+### Posterior inference
+Another slot the trial object contains is a summary table that details the cases attributed to each arm over time, along with some Bayesian inference that is based on the posterior VE distribution --
+```{r}
+trial$sum_tab %>%
+  kable(align = 'c') %>%
+  kable_styling(full_width = F, font_size = 11,
+                bootstrap_options = c("striped")) 
+```
+Remember that the placebo arm saw $\sqrt{3} = 1.73$ times as many patients randomized to it as the other arms, so the case distribution is not as blatant as it may seem. Lastly, we can observe the posterior probability density functions of the three VEs --
+```{r, fig.align='center'}
+trial$VE_post_plot
+```
+Note that the third vaccine was stopped after merely two analyses, and its VE's distribution is thus more diffuse.
+
+### Operating characteristics
+To evaluate some long run, frequenties properties of the proposed design, we run 100,000 simulations like the one above and collect certain statistics --
+```{r, eval=FALSE}
+full_sim = full_vaccine_trial_simulation(N_simulations = 1e5,
+                                         N_events_per_arm_per_analysis, 
+                                         VE, n_analyses, 
+                                         alloc_probs, hyperpar, 
+                                         futil_thresh, effic_thresh)
+```
+
+```{r, echo = FALSE}
+load("Full_Vaccine_Trial_Design_Simulation.RDATA")
+full_sim$operating_chars = full_sim$operating_chars
+```
+
+The above function includes two simulation runs: one other the alternative scenario $\mathrm{VE} = \left(50\%, 37.5\%, 25\%\right)$ and another one under the null scenario $\mathrm{VE} = \left(0\%, 0\%, 0\%\right)$. This yields the following table --
+```{r}
+full_sim$operating_chars %>%
+  kable(align = 'c', escape = F) %>%
+  kable_styling(full_width = F, 
+                bootstrap_options = c("striped"))
+```
+In this case, the decision boundaries were selected (through some trial-and-error) to yield the equivalents of a 2.5% one-sided type-I error rate and (at least) 80% power. You may also consider the early stopping probabilities under either scenario.
+
+# Bayesian adaptive cluster randomized trials
+We now switch attention to the next section of the paper, where Bayesian cluster trials are discussed. Here, we explore the Gamma-Poisson mixture (negative binomial) model, where the use of beta conjugate priors facilitates the speed necessary for extensive simulations.
+
+## Prior selection
+First, we look to choose the kind of beta prior for the transformed mean event rate parameters, $p_i$, that will make sense on the original $\mu$ scale. We start with plausible intracluster correlation coefficient (ICC) values of $\rho = 0.15$ and $\rho = 0.2$, and match the second beta shape parameter $b$ to a list of first shape parameters, $a$, in a way that would warrant that the mean event rate is centered at $10%$ for all arms a priori. All along, we assume an average cluster size of 50. The inputs are --
+```{r}
+# vector of intracluster correlation coefficient parameters to explore
+ICC_vec = c(.15, .2) 
+
+# vector of mean event rate parameters prior means to explore
+mu_mean_vec = c(.1) 
+
+# vector of beta prior first shape parameters to explore
+beta_a_vec = c(2, 4, 8, 16)
+
+#vector of mean cluster sizes to explore
+n_vec = c(50)
+```
+
+and they lend themselves to the following summary table --
+```{r}
+priors = mu_prior_summary(beta_a_vec, n_vec, mu_mean_vec, ICC_vec)
+
+
+priors %>% 
+  kbl(align = 'c', format = 'html') %>%
+  kable_styling(full_width = F, 
+                bootstrap_options = c("striped", 'bordered')) %>% 
+  collapse_rows(columns = 1:3)
+```
+
+Visually, when the x-axis is displayed on the logarithmic scale, these are our prior candidates for $\rho = 0.15$ --
+```{r, fig.align='center'}
+mu_mean = .1
+beta_a_vec = c(2, 4, 8, 16)
+ICC = .15
+mean_clust_size = 50
+LL = 5e-4
+UL = 1
+delta = 5e-3
+
+mu_prior_plot(mu_mean, beta_a_vec, ICC, mean_clust_size, LL, UL, delta)
+```
+Between those, we find the $\mathrm{Beta}(2.00, 1.30)$ prior to strike a good balance between information and a priori ambiguity. 
+
+## Trial design
+Next, we would like to incorporate these ideas in an adaptive trial framework. Suppose that we wish to trial three treatments with mean event rates of $10\%$, $7.5\%$ and $5\%$ against each other, where randomization is only possible at the cluster level (with an average cluster size of 50). We have a maximum number of 440 clusters to trial, divided into three analyses, and decision rules will be based on the posterior probability of superiority (the probability that an arm is superior to all others) $p^{\text{Sup}}$: an arm gets stopped for futility if its $p^{\text{Sup}}$ goes below $2.4\%$, and  the trial gets stopped if any arm achieves $p^{\text{Sup}} > 97.6\%$ (in which case it is declared a "winner"). 
+
+Let us take a peek at a single, randomly simulated trial. First, the required inputs are as follows --
+```{r}
+mean_clust_size = 50 # mean cluster size
+ICC = .15 # intracluster correlation coefficient
+mu_vec = c(.1, .075, .05) # mean event rate means
+Trt_nms = c('A', 'B', 'C') # treatment arm names
+N_clusts_max = 550 # maximum number of clusters
+N_analyses = 3 # maximum number of analyses (including final)
+
+# superiority threshold on the posterior probability of superiority
+sup_thresh = .988  
+
+# futility threshold on the posterior probability of superiority
+fut_thresh = .012
+
+#first beta prior shape parameter
+beta_a = 2
+
+#second beta prior shape parameter
+(beta_b = beta_prior_b_hyperpar(beta_a, mu_mean = .1, ICC, mean_clust_size))
+```
+
+### Choosing shape parameters to match ICC
+We also must provide values for the random effect shape parameters that will be used to generate random data. In the paper we show how to calculate those, based on the ICC --
+```{r}
+(true_phi_vec = ICC_to_shape(mu_vec, ICC))
+```
+
+### Sample trial
+```{r, echo = FALSE}
+load("Random_Cluster_Trial_Simulation.RDATA")
+```
+
+At long last, we may now simulate a random trial --
+```{r, eval=FALSE}
+set.seed(2)
+
+simulation = single_cluster_trial_simulation(mu_vec, N_clusts_max,
+                                             N_analyses, 
+                                             mean_clust_size,
+                                             ICC, beta_a, beta_b, 
+                                             N_MC = 1e6, sup_thresh,
+                                             fut_thresh)
+
+```
+
+To find out how things panned out, we look at the posterior probability of superiority trajectory of each arm --
+```{r, fig.align='center'}
+cluster_prob_sup_plot(simulation, fut_thresh, sup_thresh)
+```
+We can see that the first arm was dropped after the second analysis for futility. The second and the third arm saw out the trial, at the end of which the third treatment was found to be the superior of the three.
+
+### Shape parameter plug-in values via empirical Bayes
+To obtain closed form posterior distributions, we must supply values for the Gamma random effect shape parameter $\phi$. In the paper we derive empirical Bayes plug-in estimates by maximizing the arm-level log-marginal likelihood components --  
+```{r}
+phi_vec = cluster_empirical_bayes_shape(simulation$data, beta_a, beta_b)
+```
+In this example, here is how they fare in estimating the true $\phi$ values used for generating the data --
+```{r}
+phi_vec
+true_phi_vec
+```
+and the log-marginal likelihood curves --
+```{r, fig.align = 'center', fig.height = 3.5, fig.width = 9, warning = FALSE, message=FALSE}
+LL = .2 # x-axis lower limit
+UL = 1 # x-axis upper limit
+delata = 1e-3 # grid resolution
+
+cluster_marginal_likelihood_plot_all(simulation$data, beta_a, beta_b, true_phi_vec, LL, UL, delta)
+```
+
+### Posterior inference
+Everything is now set for Bayesian inference. Let us first examine the cumulative data in each arm by analysis, along with the eventual mean event rate (interval) estimate --
+```{r}
+single_trial_results = single_cluster_simulation_results(simulation, beta_a, beta_b)
+
+single_trial_results %>%
+  kable(align = c(rep('c', 5), 'r'), escape = FALSE) %>%
+  kable_styling(full_width = F, font_size = 12,
+                bootstrap_options = c("striped")) %>%
+  row_spec(0, align = 'c')
+```
+
+and observe the posterior probability density functions of the different arms --
+```{r, fig.align = 'center', warning = FALSE, message=FALSE}
+LL = .035 # x-axis lower limit
+UL = .14 # x-axis upper limit
+delta = 5e-3 # grid resolution
+
+cluster_post_density_plot(simulation, phi_vec, beta_a, beta_b, LL, UL, delta)
+```
+
+### Operating characteristics
+```{r, echo = FALSE}
+load("Full_Cluster_Trial_Design_Simulation.RDATA")
+```
+
+Finally, we simulate 100,000 random trials and collect statistics, to appraise the design --
+```{r, eval=FALSE}
+# each row in this matrix is a vector of mean event rates: one "alternative" 
+# scenario and two "null" scenarios
+mu_matrix = matrix(c(.1, .075, .05,
+                     .1, .1, .1,
+                     .1, .05, .05), 
+                   ncol = 3, byrow = TRUE)
+
+oper_charac = full_cluster_trial_simulation(mu_matrix, N_clusts_max,
+                                            N_analyses, mean_clust_size,
+                                            ICC, beta_a, beta_b, 
+                                            N_MC = 3e3, sup_thresh, fut_thresh,
+                                            N_simulations = 1e5)
+
+```
+
+and the results are as follows --
+```{r}
+oper_charac %>% 
+  kable(align = 'c', escape = FALSE) %>%
+  kable_styling(full_width = F, bootstrap_options = c("striped"))
+```
+
+A brief explanation of the results: under the "alternative" scenario ($\boldsymbol{\mu} = \left(10\%, 7.5\%, 5\%\right)$), just over 80\% of the time, this design will lead to a correct detection of treatment 3 as the superior treatment, while $0.1\%$ of the time, one of the other arms will be declared a "winner". Under the "null" scenario ($\boldsymbol{\mu} = \left(10\%, 10\%, 10\%\right)$), $5\%$ of the time a "winner" (any of the three treatments) will be announced erroneously. You can also see that under the alternative, much fewer clusters will be randomized to the least favorable treatment arm.
+
+# References
+<bibliography entry-spacing = "2" >
+<div id="refs"></div>
