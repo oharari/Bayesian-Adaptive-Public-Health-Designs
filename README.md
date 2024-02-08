@@ -1,2 +1,2 @@
-# Bayesian-Adaptive-Global-Health-Designs
-Code and data for our upcoming (2024) paper "Adaptive Trial Designs for Global Health: Vaccine and Cluster Randomized Trials go Bayesian"
+# Bayesian Adaptive Global Health Designs
+Code and data for our upcoming (2024) [paper](https://drive.google.com/file/d/1IlBQh_7sS6jEb30PFWRvPvIQFJVUpkI2/view?usp=drive_link) "Adaptive Trial Designs for Global Health: Vaccine and Cluster Randomized Trials go Bayesian".
