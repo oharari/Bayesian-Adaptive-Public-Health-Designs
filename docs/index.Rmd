@@ -25,9 +25,9 @@ link-citations: yes
 
 
 ---
-title:  "Adaptive Trial Designs for Global Health: Vaccine and Cluster Randomized Trials go Bayesian"
+title:  "Adaptive Designs in Public Health: Vaccine and Cluster Randomized Trials go Bayesian"
 author: "Ofir Harari, Jay J. H. Park, Prince Kumar Lat & Edward J. Mills"
-date:   "August 18, 2023"
+date:   "April 5, 2024"
 output:
 html_document:
 df_print: paged
