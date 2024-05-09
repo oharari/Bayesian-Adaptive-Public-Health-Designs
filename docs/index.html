@@ -1751,10 +1751,9 @@ Edward J. Mills</h4>
 p {line-height: 1.75em;}
 </style>
 <p>The following tutorial is a step-by-step demo of the methods
-presented in <a href="https://drive.google.com/file/d/1IlBQh_7sS6jEb30PFWRvPvIQFJVUpkI2/view?usp=sharing">our
-manuscript</a>. You may use <a href="https://drive.google.com/file/d/19E5lH9vFd7l050DaDFEefUePy-AVvlvZ/view?usp=sharing">the
-attached R files</a> to replicate the below results or experiment with
-it.</p>
+presented in <a href="https://onlinelibrary.wiley.com/doi/10.1002/sim.10104">our
+paper</a>. You may use <a href="https://github.com/oharari/Bayesian-Adaptive-Public-Health-Designs/tree/main/Code">our
+R code</a> to reproduce the below results or experiment with it.</p>
 <div id="before-we-start" class="section level1" number="1">
 <h1><span class="header-section-number">1</span> Before we start</h1>
 <p>Make sure that the following libraries are installed on your computer
@@ -2001,25 +2000,27 @@ Arm
 Stopping reason
 </th>
 <th style="text-align:center;">
-Analysis 1 cases
+<div class="line-block">Analysis 1</div>
+case
 </th>
 <th style="text-align:center;">
-Analysis 2 cases
+<div class="line-block">Analysis 2</div>
+cas
 </th>
 <th style="text-align:center;">
-Analysis 3 cases
+s | Analysis 3 ca
 </th>
 <th style="text-align:center;">
-Analysis 4 cases
+es | Analysis 4 c
 </th>
 <th style="text-align:center;">
-Efficacy
+ses | Effi
 </th>
 <th style="text-align:center;">
-Pr(Efficacy|Data)
+acy | Pr(Efficacy&amp;#124;D
 </th>
 <th style="text-align:center;">
-VE [95% CrI]
+ta) | VE [95% CrI]
 </th>
 </tr>
 </thead>
@@ -2539,19 +2540,19 @@ single_trial_results %&gt;%
 Trt
 </th>
 <th style="text-align:center;text-align: center;">
-Analysis 1<br>Clusters, Cases/Patients
+Analysis 1&lt;br&gt;Clusters, Cases/Patients
 </th>
 <th style="text-align:center;text-align: center;">
-Analysis 2<br>Clusters, Cases/Patients
+Analysis 2&lt;br&gt;Clusters, Cases/Patients
 </th>
 <th style="text-align:center;text-align: center;">
-Analysis 3<br>Clusters, Cases/Patients
+Analysis 3&lt;br&gt;Clusters, Cases/Patients
 </th>
 <th style="text-align:center;text-align: center;">
 Outcome
 </th>
 <th style="text-align:right;text-align: center;">
-Mean event rate<br>[95% CrI]
+Mean event rate&lt;br&gt;[95% CrI]
 </th>
 </tr>
 </thead>
@@ -2650,19 +2651,19 @@ oper_charac = full_cluster_trial_simulation(mu_matrix, N_clusts_max,
 <thead>
 <tr>
 <th style="text-align:center;">
-Mean<br>event rates
+Mean&lt;br&gt;event rates
 </th>
 <th style="text-align:center;">
-Mean no.<br>of clusters
+Mean no.&lt;br&gt;of clusters
 </th>
 <th style="text-align:center;">
-% of patients<br>in Arm 1
+% of patients&lt;br&gt;in Arm 1
 </th>
 <th style="text-align:center;">
-% of patients<br>in Arm 2
+% of patients&lt;br&gt;in Arm 2
 </th>
 <th style="text-align:center;">
-% of patients<br>in Arm 3
+% of patients&lt;br&gt;in Arm 3
 </th>
 <th style="text-align:center;">
 TPR
