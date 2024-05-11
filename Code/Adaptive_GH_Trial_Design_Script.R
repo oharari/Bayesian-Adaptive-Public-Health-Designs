@@ -69,7 +69,7 @@ priors = do.call(rbind,
 )
 
 priors %>% 
-  kable(align = 'c', escape = F) %>%
+  kbl(align = 'c', escape = F) %>%
   kable_styling(full_width = F, 
                 bootstrap_options = c("striped"))
 
@@ -119,7 +119,7 @@ trial$p_post_effic
 
 # 1.2.4 Summary table and posterior inference --------------------------------
 trial$sum_tab %>%
-  kable(align = 'c') %>%
+  kbl(align = 'c') %>%
   kable_styling(full_width = F, 
                 bootstrap_options = c("striped")) 
 
@@ -150,7 +150,7 @@ if(!Simulate_now){
 
 # 1.3.2 Operating characteristics summary table ------------------------------
 full_sim$operating_chars %>%
-  kable(align = 'c', escape = F) %>%
+  kbl(align = 'c', escape = F) %>%
   kable_styling(full_width = F, 
                 bootstrap_options = c("striped"))
 
@@ -280,7 +280,7 @@ single_trial_results = single_cluster_simulation_results(simulation,
                                                          beta_a, beta_b)
 
 single_trial_results %>%
-  kable(align = c(rep('c', 5), 'r'), escape = FALSE) %>%
+  kbl(align = c(rep('c', 5), 'r'), escape = FALSE) %>%
   kable_styling(full_width = F, 
                 bootstrap_options = c("striped")) %>%
   row_spec(0, align = 'c')
@@ -329,7 +329,7 @@ if(!Simulate_now){
 
 # 2.3.2 Operating characteristics summary table ------------------------------
 oper_charac %>% 
-  kable(align = 'c', escape = F) %>%
+  kbl(align = 'c', escape = F) %>%
   kable_styling(full_width = F, 
                 bootstrap_options = c("striped"))
 
