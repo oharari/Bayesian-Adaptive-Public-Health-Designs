@@ -44,7 +44,7 @@ options(dplyr.summarise.inform = FALSE)
 ```
 
 
-The following tutorial is a step-by-step demo of the methods presented in [our paper](https://onlinelibrary.wiley.com/doi/10.1002/sim.10104). You may use [our R code](https://github.com/oharari/Bayesian-Adaptive-Public-Health-Designs/tree/main/Code) to reproduce the below results or experiment with it.
+The following tutorial is a step-by-step demo of the methods presented in [our paper](https://onlinelibrary.wiley.com/doi/10.1002/sim.10104). You may use [our code](https://github.com/oharari/Bayesian-Adaptive-Public-Health-Designs/tree/main/Code) to reproduce the below results or experiment with it.
 
 # Before we start
 Make sure that the following libraries are installed on your computer --
@@ -121,7 +121,7 @@ priors = do.call(rbind,
 )
 
 priors %>% 
-  kable(align = 'c', escape = F) %>%
+  kbl(align = 'c', escape = F) %>%
   kable_styling(full_width = F, 
                 bootstrap_options = c("striped"))
 ```
@@ -176,7 +176,7 @@ As you can see, the third vaccine arm was stopped for futility after two interim
 Another slot the trial object contains is a summary table that details the cases attributed to each arm over time, along with some Bayesian inference that is based on the posterior VE distribution --
 ```{r}
 trial$sum_tab %>%
-  kable(align = 'c') %>%
+  kbl(align = 'c') %>%
   kable_styling(full_width = F, font_size = 11,
                 bootstrap_options = c("striped")) 
 ```
@@ -204,7 +204,7 @@ full_sim$operating_chars = full_sim$operating_chars
 The above function includes two simulation runs: one other the alternative scenario $\mathrm{VE} = \left(50\%, 37.5\%, 25\%\right)$ and another one under the null scenario $\mathrm{VE} = \left(0\%, 0\%, 0\%\right)$. This yields the following table --
 ```{r}
 full_sim$operating_chars %>%
-  kable(align = 'c', escape = F) %>%
+  kbl(align = 'c', escape = F) %>%
   kable_styling(full_width = F, 
                 bootstrap_options = c("striped"))
 ```
@@ -335,7 +335,7 @@ Everything is now set for Bayesian inference. Let us first examine the cumulativ
 single_trial_results = single_cluster_simulation_results(simulation, beta_a, beta_b)
 
 single_trial_results %>%
-  kable(align = c(rep('c', 5), 'r'), escape = FALSE) %>%
+  kbl(align = c(rep('c', 5), 'r'), escape = FALSE) %>%
   kable_styling(full_width = F, font_size = 12,
                 bootstrap_options = c("striped")) %>%
   row_spec(0, align = 'c')
@@ -375,7 +375,7 @@ oper_charac = full_cluster_trial_simulation(mu_matrix, N_clusts_max,
 and the results are as follows --
 ```{r}
 oper_charac %>% 
-  kable(align = 'c', escape = FALSE) %>%
+  kbl(align = 'c', escape = FALSE) %>%
   kable_styling(full_width = F, bootstrap_options = c("striped"))
 ```
 
